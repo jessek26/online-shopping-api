@@ -99,7 +99,10 @@ app.post('/items', async (req,res) => {
     }
 });
 
-//start server
-app.listen(PORT, () =>{
-    console.log(`server running on http://localhost:${PORT}`);
-});
+// Start Server
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`server running on http://localhost:${PORT}`);
+    });
+}
+module.exports = app;
