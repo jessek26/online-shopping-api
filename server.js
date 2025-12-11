@@ -1,12 +1,22 @@
 //imports 
+require('dotenv').config();
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 //database
 const {sequelize, Employee, Order, Item} = require('./database/db');
 const app = express();
 const PORT = 3000;
+const SECRET_KEY = process.env.JWT_SECRET;
 
 //json middleware
 app.use(express.json());
+
+//replaces try/catch blocks
+const errorHandler = (fn) => (req,res,next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 //request routes
 //get /orders - gets and displays every order w/ their items
@@ -98,6 +108,54 @@ app.post('/items', async (req,res) => {
         res.status(400).json({error: err.message});
     }
 });
+
+//post /register
+app.post('/register', errorHandler(async (req,res) => {
+    const {name, email, password, role} = req.body;
+
+    //hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    //create user
+    const user = await Employee.create({
+        name, 
+        email,
+        role,
+        password: hashedPassword
+    });
+
+    res.status(201).json(user);
+}));
+
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({error: err.message});
+});
+
+//post /login
+app.post('/login', errorHandler( async (req,res) => {
+    const user = await Employee.findOne({ where: {
+        email: req.body.email
+    }});
+
+    if(!user) {
+        return res.status(401).json({ error: "Invalid credentials"} );
+    }
+
+    //compares password
+    const isValid = await bcrypt.compare(req.body.password, user.password);
+    if(!isValid) {
+        return res.status(401).json({ error: "Incorrect password"});
+    }
+
+    //gives the user a token which expires in 1 hour
+    const token = jwt.sign(
+        {id: user.id, role: user.role},
+        SECRET_KEY,
+        {expiresIn: '1h' }
+    );
+    res.json({ token });
+}));
 
 // Start Server
 if (require.main === module) {
