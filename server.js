@@ -10,30 +10,54 @@ const app = express();
 const PORT = 3000;
 const SECRET_KEY = process.env.JWT_SECRET;
 
-//json middleware
-app.use(express.json());
-
 //replaces try/catch blocks
 const errorHandler = (fn) => (req,res,next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+//middleware to authenticate JWT
+const authToken = (req,res,next) => {
+    //get token from header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader ;
+
+    //if user doesn't have a token, they get kicked out
+    if(!token) return res.sendStatus(401);
+
+    //token verification
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if(err) return res.sendStatus(403);
+
+        req.user = user;
+        next();
+    });
+};
+
+//used for Admin only tasks
+const requireAdmin = (req,res,next) => {
+    //check role
+    //if user isn't an admin do not allow their action
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({error: "Access denied. Admins only"});
+    }
+    //allow admins
+    next();
+};
+
+//json middleware
+app.use(express.json());
+
 //request routes
 //get /orders - gets and displays every order w/ their items
-app.get('/orders', async (req, res) => {
-    try {
+app.get('/orders', authToken, errorHandler(async (req, res) => {
         const orders = await Order.findAll({
             include: Item
         });
     res.json(orders);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+}));
 
 //post /orders - create an order
-app.post('/orders', async (req, res) => {
-    try{
+app.post('/orders', authToken, requireAdmin, errorHandler(async (req, res) => {
         const {customerName, pickupTime, isDelivery, status} = req.body;
 
         //create new order using user data
@@ -45,14 +69,12 @@ app.post('/orders', async (req, res) => {
         });
         //return order with 201 status
         res.status(201).json(newOrder);
-    } catch (err) {
-        res.status(400).json({error: err.message});
-    }
-});
+    
+}));
 
 //delete /orders:id - deletes an order
-app.delete('/orders/:id', async (req,res) => {
-    try {
+app.delete('/orders/:id', authToken, requireAdmin, errorHandler(async (req,res) => {
+
         //grab order id from url
         const id = req.params.id;
         //find order
@@ -63,35 +85,27 @@ app.delete('/orders/:id', async (req,res) => {
         }
             await order.destroy();
             return res.status(200).json({message: 'Order deleted.'})
-
-    } catch (err){
-        res.status(400).json({error: err.message});
-    }
-});
+}));
 
 //patch /orders/:id - update an order
-app.patch('/orders/:id', async (req,res) => {
-    try {
-        //grab id from url and find order
-        const id = req.params.id;
-        const order = await Order.findByPk(id);
+app.patch('/orders/:id', authToken, errorHandler(async (req,res) => {
+    const id = req.params.id;
+    const order = await Order.findByPk(id);
 
-        //if there order with provided id doesnt exist
-        if(!order) {
-            return res.status(404).json({error: 'order not found'});
+    //if the order doesn't exists
+    if(!order) return res.status(404).json({error: 'Order not found'});
+
+    if(req.user.role !== 'admin') {
+        if(order.employeeId !== req.user.id) {
+            return res.status(403).json({error: 'You can only make changes to orders assigned to you'});
         }
-        //update the order and return it
-        await order.update(req.body);
-        return res.json(order);
-
-    } catch (err) {
-        res.status(400).json({error: err.message});
     }
-});
+    await order.update(req.body);
+    res.json(order);
+}));
 
 //post /items - create items
-app.post('/items', async (req,res) => {
-    try {
+app.post('/items', authToken, errorHandler(async (req,res) => {
         //collect item info from body 
         const {name, price, department, orderId} = req.body;
         //create new item with info
@@ -103,11 +117,7 @@ app.post('/items', async (req,res) => {
         });
         //return the new item
         res.status(201).json(newItem);
-
-    } catch (err) {
-        res.status(400).json({error: err.message});
-    }
-});
+}));
 
 //post /register
 app.post('/register', errorHandler(async (req,res) => {
@@ -127,13 +137,8 @@ app.post('/register', errorHandler(async (req,res) => {
     res.status(201).json(user);
 }));
 
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({error: err.message});
-});
-
 //post /login
-app.post('/login', errorHandler( async (req,res) => {
+app.post('/login', errorHandler(async (req,res) => {
     const user = await Employee.findOne({ where: {
         email: req.body.email
     }});
@@ -156,6 +161,16 @@ app.post('/login', errorHandler( async (req,res) => {
     );
     res.json({ token });
 }));
+
+app.post('/logout', (req, res) => {
+    res.json({message: 'Logout successful'});
+})
+
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({error: err.message});
+});
+
 
 // Start Server
 if (require.main === module) {
