@@ -1,63 +1,124 @@
-# Online Shopping API
+I am sorry about that\! It seems the file preview window isn't loading correctly for you.
 
-## Project Description
+Here is the **exact text** for your `README.md` file. You can copy and paste everything below the line into your file.
 
-This is a RESTful API built for the "Online Shopping" system. It allows store managers to track online orders, manage inventory items, and assign shoppers to orders.
+---
+
+# Retail Store Management API
+
+**Live Deployment:** [https://online-shopping-api-2w00.onrender.com](https://www.google.com/search?q=https://online-shopping-api-2w00.onrender.com)
+
+## Project Overview
+
+A robust RESTful API designed to streamline grocery store operations. It allows managers (Admins) to create and assign orders, while employees (Shoppers) can view their assigned tasks and manage inventory.
+
+## Key Features
+
+- **Secure Authentication:** User registration and login using BCrypt (hashing) and JWT (Tokens).
+- **Role-Based Access Control (RBAC):** Strict permission separation between **Admins** and **Shoppers**.
+- **Advanced Filtering:** Filter orders by status or delivery type.
+- **Ownership Checks:** Shoppers can only modify orders assigned specifically to them.
+- **Environment Aware:** Automatically switches between SQLite (Local) and PostgreSQL (Production).
 
 ## Technologies Used
 
-- **Runtime:** Node.js
-- **Framework:** Express.js
-- **Database:** SQLite (via Sequelize ORM)
+- **Runtime:** Node.js & Express
+- **Database:** PostgreSQL (Production) / SQLite (Local)
+- **ORM:** Sequelize
+- **Security:** JSON Web Tokens (JWT) & BCryptjs
 - **Testing:** Jest & Supertest
 
-## Setup Instructions
+---
 
-1.  **Install Dependencies:**
+## Authentication Guide
+
+This API uses **Bearer Token Authentication**.
+
+1.  **Login** via `POST /login` to receive a `token`.
+2.  Include this token in the header of all protected requests:
+    - **Key:** `Authorization`
+    - **Value:** `YOUR_TOKEN_STRING`
+
+### User Roles & Permissions
+
+| Role        | Permissions                                                                                                         |
+| :---------- | :------------------------------------------------------------------------------------------------------------------ |
+| **Admin**   | Full access. Can create/delete orders, view all employees, and manage any order.                                    |
+| **Shopper** | Restricted access. Can view assigned orders, update order status, and manage items. Cannot create or delete orders. |
+
+### Default Test Credentials (from Seed)
+
+- **Admin:** `mike@store.com` / `password123`
+- **Shopper:** `sarah@store.com` / `password123`
+
+---
+
+## API Endpoints
+
+### Authentication
+
+| Method | Endpoint    | Access | Description                       |
+| :----- | :---------- | :----- | :-------------------------------- |
+| `POST` | `/register` | Public | Register a new user account.      |
+| `POST` | `/login`    | Public | Login to receive an access token. |
+
+### Orders
+
+| Method   | Endpoint      | Access         | Description                                                              |
+| :------- | :------------ | :------------- | :----------------------------------------------------------------------- |
+| `GET`    | `/orders`     | Protected      | Fetch orders. Supports filters: `?status=pending` or `?isDelivery=true`. |
+| `GET`    | `/orders/:id` | Protected      | Fetch details for a single order.                                        |
+| `POST`   | `/orders`     | **Admin Only** | Create a new order.                                                      |
+| `PATCH`  | `/orders/:id` | Owner/Admin    | Update status. Shoppers can only update _their_ orders.                  |
+| `DELETE` | `/orders/:id` | **Admin Only** | Permanently remove an order.                                             |
+
+### Items (Inventory)
+
+| Method   | Endpoint     | Access    | Description                         |
+| :------- | :----------- | :-------- | :---------------------------------- |
+| `POST`   | `/items`     | Protected | Add an item to an order.            |
+| `PATCH`  | `/items/:id` | Protected | Update item details (price, stock). |
+| `DELETE` | `/items/:id` | Protected | Remove an item from an order.       |
+
+### Employees
+
+| Method | Endpoint     | Access         | Description                     |
+| :----- | :----------- | :------------- | :------------------------------ |
+| `GET`  | `/employees` | **Admin Only** | View list of all staff members. |
+
+---
+
+## Local Setup Instructions
+
+1.  **Clone & Install:**
 
     ```bash
+    git clone https://github.com/YOUR_USERNAME/online-shopping-api.git
+    cd online-shopping-api
     npm install
     ```
 
-2.  **Seed the Database:**
-    (This resets the database and adds test data like "John Doe" and "Manager Mike")
+2.  **Environment Setup:**
+    Create a `.env` file in the root folder:
+
+    ```ini
+    JWT_SECRET=my_super_secret_key
+    ```
+
+3.  **Seed Database:**
 
     ```bash
     npm run seed
     ```
 
-3.  **Start the Server:**
+4.  **Run Server:**
 
     ```bash
     npm start
     ```
 
-    The server will run at `http://localhost:3000`.
+5.  **Run Tests:**
 
-4.  **Run Tests:**
     ```bash
     npm test
     ```
-
-## API Endpoints
-
-### Orders
-
-| Method     | Endpoint      | Description                        | Request Body Example                                                  |
-| :--------- | :------------ | :--------------------------------- | :-------------------------------------------------------------------- |
-| **GET**    | `/orders`     | Fetch all orders (includes items). | N/A                                                                   |
-| **POST**   | `/orders`     | Create a new order.                | `{ "customerName": "John", "pickupTime": "5pm", "isDelivery": true }` |
-| **PATCH**  | `/orders/:id` | Update an order (e.g., status).    | `{ "status": "completed" }`                                           |
-| **DELETE** | `/orders/:id` | Delete an order.                   | N/A                                                                   |
-
-### Items
-
-| Method   | Endpoint | Description              | Request Body Example                              |
-| :------- | :------- | :----------------------- | :------------------------------------------------ |
-| **POST** | `/items` | Add an item to an order. | `{ "name": "Milk", "price": 2.99, "orderId": 1 }` |
-
-## Future Improvements
-
-- **Authentication:** Adding Login/Register for Admins and Shoppers.
-- **Authorization:** Restricting `DELETE` routes to Admins only.
-- **Frontend:** Building a React dashboard for visualizing orders.
