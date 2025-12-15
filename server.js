@@ -48,12 +48,48 @@ const requireAdmin = (req,res,next) => {
 app.use(express.json());
 
 //request routes
-//get /orders - gets and displays every order w/ their items
+//get /orders - gets and displays every order w/ their items (has optional filters)
 app.get('/orders', authToken, errorHandler(async (req, res) => {
-        const orders = await Order.findAll({
-            include: Item
-        });
+    
+    //gets filters from url
+    const {status, isDelivery} = req.query;
+    
+    //database querey object
+    let whereClause = {};
+
+    //implementing filters: role based (shoppers seeing orders assigned to them), status, and deliveries/pickups 
+    if (req.user.role === 'shopper') {
+        whereClause.employeeId = req.user.id;
+    }
+    if (status) {
+        whereClause.status = status;
+    } 
+    if(isDelivery) {
+        whereClause.isDelivery = isDelivery === 'true';
+    }
+
+    //run query w/ filters
+    const orders = await Order.findAll({
+        where: whereClause,
+        include: Item
+    });
     res.json(orders);
+}));
+
+//get /orders/:id - displays a single order 
+app.get("/orders/:id", authToken, errorHandler(async (req,res) => {
+    const id = req.params.id;
+    const order = await Order.findByPk(id, {include: Item});
+
+    //if order cannot be found
+    if(!order) return res.status(404).json({error: 'Order not found'});
+
+    //shoppers cant check each others orders
+    if (req.user.role !== 'admin' && order.employeeId !== req.user.id) {
+        return res.status(403).json({error: 'Access denied'});
+    }
+    
+    res.json(order);
 }));
 
 //post /orders - create an order
@@ -117,6 +153,34 @@ app.post('/items', authToken, errorHandler(async (req,res) => {
         });
         //return the new item
         res.status(201).json(newItem);
+}));
+
+//patch /items/:id - update items
+app.patch('/items/:id', authToken, errorHandler(async (req,res) => {
+    const id = req.params.id;
+    const item = await Item.findByPk(id);
+
+    if(!item) return res.status(404).json({error: 'Item not found'});
+
+    await item.update(req.body);
+    res.json(item);
+}));
+
+app.delete('/items/:id', authToken, errorHandler(async (req, res) => {
+    const id = req.params.id;
+    const item = await Item.findByPk(id);
+
+    if(!item) return res.status(404).json({error: 'Item not found'});
+
+    await item.destroy();
+    res.json({message: 'Item removed'});
+}))
+
+app.get('/employees', authToken, requireAdmin, errorHandler(async (req, res) => {
+    const employees = await Employee.findAll({
+        attributes: ['id', 'name', 'email', 'role']
+    });
+    res.json(employees);
 }));
 
 //post /register
